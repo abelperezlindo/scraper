@@ -12,7 +12,9 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.17.1",
+    "fs": "^0.0.1-security",
     "mongoose": "^6.0.0",
-    "puppeteer": "^10.2.0"
+    "puppeteer": "^10.2.0",
+    "request": "^2.88.2"
   }
 }
