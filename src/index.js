@@ -1,39 +1,42 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs')
-const request = require('request')
+const request = require('request');
+const getter = require('./urlGetter.js');
 
 
 
 let scrape = async (url) => {
     const browser = await puppeteer.launch({ 
         executablePath: '/usr/bin/google-chrome-stable',
-        headless: false 
+        headless: true 
     });
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
     try{
         await page.goto(url, [1000, { waitUntil: "domcontentloaded" }]);
+        await page.waitForSelector('body');
         
         let relacionados = await page.evaluate(() => {
             let related = new Array();
             let links = document.querySelector('#block-system-main > div > div > div.field.field-name-field-temas-relacionados.field-type-taxonomy-term-reference.field-label-above');
             if(links){
                 links = links.getElementsByTagName('a');
-            } else {
-                links = new Array();
-            }
-            for (let item of links){
-                let r = item.innerText.toLowerCase();
-                r =  r[0].toUpperCase() + r.slice(1);
-                console.log(r);
-                related.push(r);
-            }
-            return related;
+                for (let item of links){
+                    let r = item.innerText.toLowerCase();
+                    r =  r[0].toUpperCase() + r.slice(1);
+                    console.log(r);
+                    related.push(r);
+                }
+                return related;
+            } 
+
+            return false;
+
         });
-
-        relacionados.forEach(element => console.log('related: ' + element));
-
-        await page.waitForSelector('body');
+        if (relacionados !== false){
+            relacionados.forEach(element => console.log('related: ' + element));
+        }
+    
         data = {
             "seccion" : await page.evaluate(() => document.querySelector('#block-system-main > div > div > div.field.field-name-field-seccion.field-type-taxonomy-term-reference.field-label-hidden > div > div > a').innerText),
             "titulo"  : await page.evaluate(() => document.querySelector('#content-wrapper > h1.page-title').innerText),
@@ -44,13 +47,11 @@ let scrape = async (url) => {
             "relacionados": relacionados
         }
 
-       
-
+    
         await page.goto(data.imagen);
-        await page.waitForSelector('body');
+        await page.waitForSelector('body > img');
         const elem = await page.$('body > img');
         const boundingBox = await elem.boundingBox();
-        console.log('boundingBox', boundingBox);
         const image = await page.screenshot({
             path: data.filename,
             clip: boundingBox
@@ -59,18 +60,16 @@ let scrape = async (url) => {
         await page.close();
         let  pageToUp = await  browser.newPage();
         await pageToUp.goto('http://digital.ga/user/login', {waitUntil: 'networkidle0'});
-        await pageToUp.waitForSelector('body');
+        await pageToUp.waitForSelector('#edit-name');
         await pageToUp.type('#edit-name', '');
         await pageToUp.type('#edit-pass', '');
         await pageToUp.click('#edit-submit', {delay: 1000});
-        await pageToUp.waitForTimeout(5000);
+        await pageToUp.waitForSelector('#block-bootstrap-business-content > div > article');
         await pageToUp.goto('http://digital.ga/node/add/noticia', {waitUntil: 'networkidle0'});
-        await pageToUp.waitForTimeout(1000);
-
+        await pageToUp.waitForSelector('#edit-title-0-value');
         await pageToUp.type('#edit-title-0-value', data.titulo);
         let value = await getOptionValue(data.seccion);
         await pageToUp.select('#edit-field-seccion', value);
-        //body
         await pageToUp.type('#edit-body-0-value', data.cuerpo);
 
         await pageToUp.click('#edit-field-imagen-principal-selection-0-remove-button', {delay: 1000});
@@ -106,23 +105,26 @@ let scrape = async (url) => {
         //await pageToUp.waitForTimeout(1000);
         
         let iter = 0;
-        let arr = data.relacionados;
-        for (let item of arr){
-            let att = 'input[data-drupal-selector=edit-field-temas-relacionados-' + iter + '-target-id]';
-            await pageToUp.type(att, item);
-            await pageToUp.waitForTimeout(500);
-            //data-drupal-selector=edit-field-temas-relacionados-add-more
-            await pageToUp.click('input[data-drupal-selector=edit-field-temas-relacionados-add-more]');
-            await pageToUp.waitForTimeout(3000);
-            iter++;
+        if(data.relacionados !== false){
+            let arr = data.relacionados;
+            for (let item of arr){
+                let att = 'input[data-drupal-selector=edit-field-temas-relacionados-' + iter + '-target-id]';
+                await pageToUp.type(att, item);
+                await pageToUp.waitForTimeout(500);
+                //data-drupal-selector=edit-field-temas-relacionados-add-more
+                await pageToUp.click('input[data-drupal-selector=edit-field-temas-relacionados-add-more]');
+                await pageToUp.waitForTimeout(3000);
+                iter++;
+            }
         }
+
 
 
         await pageToUp.click('#edit-submit');
         await pageToUp.waitForTimeout(4000);
         fs.unlink(data.filename, () => console.log('Imagen borrada'));
         //await pageToUp.evaluate();
-
+        console.log('Una noticia fue cargada');
         //await browser.close();
         console.log(data);
     }catch(e){
@@ -148,5 +150,20 @@ let getOptionValue = async (opt) =>{
     return '_none';
 }
 
+let createNews = async () => {
+    console.log('Inicia buscar links');
+    let links = await getter.getNewsLinks();
+    console.log('Inicia crear noticias');
+    for(let iter = 0; iter < links.length ; iter++){
+        await scrape (links[iter]);
+    }
+    console.log('termino')
+}
 
-scrape("https://www.analisisdigital.com.ar/judiciales/2021/08/22/juicio-los-monos-el-fiscal-bajo-buscar-una-pizza-con-un-chaleco-antibalas");
+
+createNews();
+
+
+
+// ERROR
+//  No node found for selector: input[data-drupal-selector=edit-field-temas-relacionados-1-target-id]
