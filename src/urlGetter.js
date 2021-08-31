@@ -7,8 +7,8 @@ const request = require('request')
 
 let getSectionsUrls = async (url) => {
     const browser = await puppeteer.launch({ 
-        //executablePath: '/usr/bin/google-chrome-stable',
-        headless: true 
+        executablePath: '/usr/bin/google-chrome-stable',
+        headless: false 
     });
     const page = await browser.newPage();
     await page.setViewport({ width: 1024, height: 780 });
@@ -35,6 +35,7 @@ let getSectionsUrls = async (url) => {
         console.log('Las secciones son: ', secciones);
         page.close();
         browser.close();
+        
         return secciones;
     } catch(err){
         console.log(err);
@@ -45,8 +46,8 @@ let getSectionsUrls = async (url) => {
 
 let getNewsLinks = async () => {
     const browser = await puppeteer.launch({ 
-        //executablePath: '/usr/bin/google-chrome-stable',
-        headless: true 
+        executablePath: '/usr/bin/google-chrome-stable',
+        headless: false 
     });
     try{
         const page = await browser.newPage();
@@ -83,6 +84,8 @@ let getNewsLinks = async () => {
             links = links.concat(linksSeccion);
         }
         console.log('links: ', links);
+        await page.close();
+        await browser.close();
         return links;
     } catch(err){
         console.log(err);
